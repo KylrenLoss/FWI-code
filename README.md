@@ -100,15 +100,15 @@ The final model is written to `output2/vp_inv_final.bin`.
 | Source / receiver depth | 10 m |
 | Finite-difference scheme | 2nd order in time, 8th order in space; hybrid Higdon absorbing boundary |
 
-All 501 traces are used in both steps. The lateral extension is part of the physical model; the 34-point absorbing layer contains no receivers.
+**Note on the receiver count.** The manuscript describes the 461 receivers within the target region. To reduce boundary artifacts, the code extends the model by 20 edge-replicated grid points (200 m) on each side and places 20 additional receivers in each extension, giving 501 receivers per shot. All 501 traces are used in both inversion steps, and all results are displayed within the original 461 × 141 target region. The 34-point absorbing layer contains no receivers.
 
 ## Configuration
 
 All parameters are compile-time macros near the top of each `.cu` file; edit and recompile to change them. The most relevant ones:
 
 - Integration: `N_TI_ITER`, `TI_TW_HALF`, `TI_KAISER_BETA`, `TI_WIN_NORM` (`ti.cu`)
-- Inversion: `K_ITER`, `VMIN_CLAMP`, `VMAX_CLAMP`, `SAVE_EVERY`, `SAVE_GRAD`
-- Gradient preconditioning: `PRECOND_ILLUM`, `ILLUM_USE_REC`, `ILLUM_EPS`, `PRECOND_VPOW`, `VPOW_P`, `PRECOND_SMOOTH`, `SMOOTH_RADIUS`, `SMOOTH_SIGMA`
+- Inversion: `K_ITER` (`ti.cu`; `STAGE_ITER` in `tifwi.cu`), `VMIN_CLAMP`, `VMAX_CLAMP`, `SAVE_EVERY`, `SAVE_GRAD`
+- Gradient preconditioning: `PRECOND_ILLUM`, `ILLUM_USE_REC`, `ILLUM_EPS`, `PRECOND_VPOW`, `VPOW_P`, `PRECOND_SMOOTH` (`ti.cu`; `STAGE_SMOOTH` in `tifwi.cu`), `SMOOTH_RADIUS`, `SMOOTH_SIGMA`
 - Multiscale stages: `N_STAGES`, `STAGE_F0`, `STAGE_ITER`, `STAGE_SMOOTH`, `STAGE_LP_FC`, `LP_TAPER` (`tifwi.cu`)
 - Acquisition: `N_SHOTS`, `DSX`, `REC_EXT`, `DRX`
 
