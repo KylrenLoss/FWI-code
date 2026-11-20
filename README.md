@@ -46,9 +46,11 @@ FWI-code/
 ## Requirements
 
 - Linux (the code uses POSIX `mkdir`; native Windows builds need minor changes)
-- NVIDIA GPU; the main allocations are one stored wavefield of about 1.9 GB and three shot-data buffers of about 0.75 GB each, so a GPU with 8 GB or more of memory is recommended
-- NVIDIA driver and CUDA Toolkit (`nvcc`) with a supported host C/C++ compiler; the code was developed and tested with CUDA 11.8
+- NVIDIA GPU; the main GPU allocations are one stored wavefield of about 1.9 GB and three shot-data buffers of about 0.75 GB each
+- NVIDIA driver and CUDA Toolkit (`nvcc`) with a supported host C/C++ compiler
 - Several GB of free disk space for the generated outputs
+
+Tested configuration: Ubuntu 22.04, CUDA 11.8, one NVIDIA GeForce RTX 4090D (24 GB), Intel Xeon Platinum 8352S CPU (16 vCPUs), 62 GB RAM.
 
 ## Compilation
 
@@ -57,7 +59,7 @@ nvcc -O3 -arch=sm_89 -use_fast_math ti.cu    -o ti    -lm
 nvcc -O3 -arch=sm_89 -use_fast_math tifwi.cu -o tifwi -lm
 ```
 
-`sm_89` targets Ada Lovelace GPUs. Replace it with the compute capability of your GPU (e.g. `sm_80` for A100, `sm_86` for RTX 30-series). `-use_fast_math` may cause small numerical differences across GPUs and CUDA versions.
+`sm_89` targets Ada Lovelace GPUs such as the RTX 4090D used for testing. Replace it with the compute capability of your GPU (e.g. `sm_80` for A100, `sm_86` for RTX 30-series). `-use_fast_math` may cause small numerical differences across GPUs and CUDA versions.
 
 ## Quick start
 
