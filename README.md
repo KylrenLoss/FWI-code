@@ -11,11 +11,18 @@ The example runs two inversion steps in sequence:
 
 The two programs are standalone; `tifwi.cu` only reads the output file of `ti.cu`.
 
+## Documentation
+
+- [User Guide](docs/USER_GUIDE.md): acquisition geometry, input and output formats, all configurable parameters, and expected behaviour.
+- [Tutorial](docs/TUTORIAL.md): reading and plotting the results, using your own velocity model, changing the integration parameters, and changing the multiscale stages.
+
 ## Scope
 
 This repository reproduces the full-bandwidth Marmousi-II experiment in Section 3.1 of the manuscript, i.e. the results in **Fig. 7(b)** (TI-FWI) and **Fig. 7(c)** (conventional FWI initialized with the TI-FWI result).
 
 Not included: the conventional-FWI baseline from the linear model (Fig. 7(a)), the experiment with frequencies below 4 Hz removed (Section 3.2), and the South China Sea field-data experiment (Section 4). The field data are proprietary and cannot be redistributed.
+
+The code places 501 receivers per shot, whereas the manuscript describes the 461 receivers within the target region; see [Note on the receiver count](docs/USER_GUIDE.md#note-on-the-receiver-count).
 
 ## Repository layout
 
@@ -23,12 +30,15 @@ Not included: the conventional-FWI baseline from the linear model (Fig. 7(a)), t
 FWI-code/
 ├── README.md
 ├── LICENSE
-├── .gitignore                 # excludes output/ and output2/
-├── ti.cu
-├── tifwi.cu
-└── model_bin/
-    ├── mar2_ext_501_141.bin       # true model (used to synthesize observed data)
-    └── mar2_lin_501_141_4400.bin  # linear initial model for ti.cu
+├── .gitignore                     # excludes output/ and output2/
+├── ti.cu                          # step 1: Kaiser-windowed TI-FWI
+├── tifwi.cu                       # step 2: multiscale conventional FWI
+├── model_bin/
+│   ├── mar2_ext_501_141.bin       # true model (used to synthesize observed data)
+│   └── mar2_lin_501_141_4400.bin  # linear initial model for ti.cu
+└── docs/
+    ├── USER_GUIDE.md
+    └── TUTORIAL.md
 ```
 
 `output/` and `output2/` are created at runtime. Input and output paths are relative and hard-coded, so **run both programs from the repository root**.
@@ -36,7 +46,7 @@ FWI-code/
 ## Requirements
 
 - Linux (the code uses POSIX `mkdir`; native Windows builds need minor changes)
-- NVIDIA GPU; the main allocations are one stored wavefield of about 1.9 GB (569 × 209 × 4001 float32) and three shot-data buffers of about 0.75 GB each (93 × 4001 × 501 float32), so a GPU with 8 GB or more of memory is recommended
+- NVIDIA GPU; the main allocations are one stored wavefield of about 1.9 GB and three shot-data buffers of about 0.75 GB each, so a GPU with 8 GB or more of memory is recommended
 - NVIDIA driver and CUDA Toolkit (`nvcc`) with a supported host C/C++ compiler; the code was developed and tested with CUDA 11.8
 - Several GB of free disk space for the generated outputs
 
@@ -49,123 +59,16 @@ nvcc -O3 -arch=sm_89 -use_fast_math tifwi.cu -o tifwi -lm
 
 `sm_89` targets Ada Lovelace GPUs. Replace it with the compute capability of your GPU (e.g. `sm_80` for A100, `sm_86` for RTX 30-series). `-use_fast_math` may cause small numerical differences across GPUs and CUDA versions.
 
-## Running the example
-
-### Step 1: TI-FWI
+## Quick start
 
 ```bash
-./ti
+./ti        # step 1, writes output/vp_inv_final.bin
+./tifwi     # step 2, reads output/vp_inv_final.bin, writes output2/vp_inv_final.bin
 ```
 
-Settings (defined as macros at the top of `ti.cu`):
+Run `./tifwi` only after `./ti` has finished. Main settings of step 1: 10 Hz Ricker wavelet, 6 Kaiser-windowed integration passes, window length 140, Kaiser β = 6.0, 50 iterations. Step 2 runs three stages with 10, 20 and 30 Hz Ricker wavelets, 50 iterations each, without trace integration. Full parameter lists are in the [User Guide](docs/USER_GUIDE.md).
 
-| Parameter | Value | Macro |
-| --- | --- | --- |
-| Time step / number of samples | 1 ms / 4001 (4 s) | `DT`, `NT` |
-| Ricker peak frequency / delay | 10 Hz / 0.7 s | `F0`, `T0` |
-| Integration passes | 6 | `N_TI_ITER` |
-| Integration window | 141 samples (140 ms) | `TI_TW_HALF = 70` |
-| Kaiser β | 6.0 | `TI_KAISER_BETA` |
-| Window normalization | sum of weights = 1 | `TI_WIN_NORM` |
-| Iterations | 50 | `K_ITER` |
-
-The source wavelet and the observed data are passed through the same Kaiser-windowed integration before inversion. The final model is written to `output/vp_inv_final.bin` and is required by step 2.
-
-### Step 2: multiscale conventional FWI
-
-```bash
-./tifwi
-```
-
-`tifwi` reads `output/vp_inv_final.bin` and runs three stages; each stage starts from the previous result and re-synthesizes the observed data from the true model with that stage's wavelet (delay `T0 = 0.2 s`). No trace integration is applied in this step.
-
-| Stage | Ricker peak frequency | Iterations | Gradient smoothing | Wavelet low-pass |
-| --- | ---: | ---: | --- | --- |
-| 1 | 10 Hz | 50 | on | none |
-| 2 | 20 Hz | 50 | off | none |
-| 3 | 30 Hz | 50 | off | 35 Hz (5 Hz cosine half-width) |
-
-The final model is written to `output2/vp_inv_final.bin`.
-
-## Geometry
-
-| Quantity | Value |
-| --- | --- |
-| Target model | 461 × 141 grid points (4600 m × 1400 m) |
-| Lateral edge extension | 20 points per side → 501 × 141 |
-| Absorbing boundary | 34 points per side → 569 × 209 simulation grid |
-| Grid spacing | 10 m |
-| Shots | 93, spacing 50 m, within the target region |
-| Receivers | 501 fixed receivers, spacing 10 m (461 in the target region, 20 in each extension) |
-| Source / receiver depth | 10 m |
-| Finite-difference scheme | 2nd order in time, 8th order in space; hybrid Higdon absorbing boundary |
-
-**Note on the receiver count.** The manuscript describes the 461 receivers within the target region. To reduce boundary artifacts, the code extends the model by 20 edge-replicated grid points (200 m) on each side and places 20 additional receivers in each extension, giving 501 receivers per shot. All 501 traces are used in both inversion steps, and all results are displayed within the original 461 × 141 target region. The 34-point absorbing layer contains no receivers.
-
-## Configuration
-
-All parameters are compile-time macros near the top of each `.cu` file; edit and recompile to change them. The most relevant ones:
-
-- Integration: `N_TI_ITER`, `TI_TW_HALF`, `TI_KAISER_BETA`, `TI_WIN_NORM` (`ti.cu`)
-- Inversion: `K_ITER` (`ti.cu`; `STAGE_ITER` in `tifwi.cu`), `VMIN_CLAMP`, `VMAX_CLAMP`, `SAVE_EVERY`, `SAVE_GRAD`
-- Gradient preconditioning: `PRECOND_ILLUM`, `ILLUM_USE_REC`, `ILLUM_EPS`, `PRECOND_VPOW`, `VPOW_P`, `PRECOND_SMOOTH` (`ti.cu`; `STAGE_SMOOTH` in `tifwi.cu`), `SMOOTH_RADIUS`, `SMOOTH_SIGMA`
-- Multiscale stages: `N_STAGES`, `STAGE_F0`, `STAGE_ITER`, `STAGE_SMOOTH`, `STAGE_LP_FC`, `LP_TAPER` (`tifwi.cu`)
-- Acquisition: `N_SHOTS`, `DSX`, `REC_EXT`, `DRX`
-
-Setting `TI_KAISER_BETA = 0` gives a rectangular window, which can be used to compare window functions.
-
-## Input and output formats
-
-### Input models
-
-Raw little-endian float32, no header, velocity in m/s, 501 (x) × 141 (z), depth index fastest: sample `(i, j)` is at `i * 141 + j` (0-based). Each file is 282,564 bytes. The absorbing boundary is filled by edge replication inside the programs.
-
-The true model is a portion of the Marmousi-II model (Martin et al., 2006), extended by 20 edge-replicated columns on each side. The initial model is a linear velocity model.
-
-Martin, G.S., Wiley, R., Marfurt, K.J., 2006. Marmousi2: An elastic upgrade for Marmousi. The Leading Edge 25 (2), 156–166.
-
-### Outputs
-
-```text
-output/                        # ti
-├── vp_inv_final.bin           # final TI-FWI model (input of tifwi)
-├── vp_inv_iter_NN.bin         # model every 5 iterations
-├── obs_data.bin               # observed data
-├── obs_data_int.bin           # integrated, normalized observed data
-├── wavelet_orig.bin, wavelet_int.bin
-├── obj_history.bin            # objective function, 50 values
-└── grad_*, illum_*, alpha/beta/gradnorm_history.bin
-
-output2/                       # tifwi
-├── stage1_10Hz/, stage2_20Hz/, stage3_30Hz/
-│   ├── vp_inv_final.bin
-│   ├── obj_history.bin
-│   ├── rmse_target_history.bin   # RMSE in the target region, water included
-│   └── rmse_rock_history.bin     # RMSE in the target region, water excluded
-└── vp_inv_final.bin           # final model
-```
-
-- Velocity models: float32, 569 × 209 including the absorbing boundary, depth fastest (`i * 209 + j`), 475,684 bytes.
-- Shot data: float32, ordered `[shot][time][receiver]` with receiver fastest, 93 × 4001 × 501 values (about 746 MB).
-- Other diagnostic files are listed in the header comment of each `.cu` file.
-
-## Plotting the target region
-
-Remove the 34-point absorbing boundary and the 20-point lateral extensions to obtain the 461 × 141 target region. MATLAB example:
-
-```matlab
-fid = fopen('output/vp_inv_final.bin', 'rb', 'ieee-le');   % or output2/vp_inv_final.bin
-V = fread(fid, [209, 569], 'single=>single');
-fclose(fid);
-
-V_target = V(35:175, 55:515);   % 141 (z) x 461 (x)
-
-imagesc((0:460) * 10, (0:140) * 10, V_target);
-axis image; colorbar;
-xlabel('Distance (m)'); ylabel('Depth (m)');
-```
-
-`output/vp_inv_final.bin` corresponds to Fig. 7(b) and `output2/vp_inv_final.bin` to Fig. 7(c).
+To view the results, see [Reading and plotting the results](docs/TUTORIAL.md#1-reading-and-plotting-the-results).
 
 ## License
 
