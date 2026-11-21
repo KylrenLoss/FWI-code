@@ -20,8 +20,6 @@ The two programs are standalone; `tifwi.cu` only reads the output file of `ti.cu
 
 This repository reproduces the full-bandwidth Marmousi-II experiment in Section 3.1 of the manuscript, i.e. the results in **Fig. 7(b)** (TI-FWI) and **Fig. 7(c)** (conventional FWI initialized with the TI-FWI result).
 
-Not included: the conventional-FWI baseline from the linear model (Fig. 7(a)), the experiment with frequencies below 4 Hz removed (Section 3.2), and the South China Sea field-data experiment (Section 4). The field data are proprietary and cannot be redistributed.
-
 The code places 501 receivers per shot, whereas the manuscript describes the 461 receivers within the target region; see [Note on the receiver count](docs/USER_GUIDE.md#note-on-the-receiver-count).
 
 ## Repository layout
